@@ -848,6 +848,7 @@ void DemoFile::Save(const std::string& filename)
 
 	o.seekp(dirOffsetPos, std::ios::beg);
 	write_object(o, static_cast<int32_t>(dirOffset));
+	header.directoryOffset = static_cast<int32_t>(dirOffset);
 
 	o.close();
 }
