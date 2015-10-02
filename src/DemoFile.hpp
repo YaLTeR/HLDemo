@@ -6,7 +6,7 @@
 #include <vector>
 #include <boost/nowide/fstream.hpp>
 
-#include "DemoFrame.h"
+#include "DemoFrame.hpp"
 
 struct DemoHeader {
 	int32_t netProtocol;
@@ -34,13 +34,11 @@ class DemoFile
 {
 public:
 	DemoFile(const std::string& filename);
-
-	auto GetHeader() const { return header; }
-	auto GetDirectoryEntryCount() const { return dirEntryCount; }
-	auto GetDirectoryEntries() const { return dirEntries; }
 	void ReadFrames();
-
 	void Save(const std::string& filename);
+
+	DemoHeader header;
+	std::vector<DemoDirectoryEntry> directoryEntries;
 
 	static bool IsValidDemoFile(const std::string& filename);
 
@@ -49,11 +47,7 @@ protected:
 	std::streampos demoSize;
 
 	void ReadHeader();
-	DemoHeader header;
-
 	void ReadDirectory();
-	int32_t dirEntryCount;
-	std::vector<DemoDirectoryEntry> dirEntries;
 
 	bool readFrames;
 };

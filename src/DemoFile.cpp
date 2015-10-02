@@ -6,8 +6,8 @@
 //#include <boost/nowide/iostream.hpp>
 #include <boost/nowide/fstream.hpp>
 
-#include "DemoFile.h"
-#include "DemoFrame.h"
+#include "DemoFile.hpp"
+#include "DemoFrame.hpp"
 
 enum {
 	HEADER_SIZE = 544,
@@ -110,12 +110,13 @@ void DemoFile::ReadDirectory()
 		throw std::runtime_error("Error parsing the demo directory: invalid directory offset.");
 
 	demo.seekg(header.directoryOffset, std::ios::beg);
+	int32_t dirEntryCount;
 	read_object(demo, dirEntryCount);
 	if (dirEntryCount < MIN_DIR_ENTRY_COUNT || dirEntryCount > MAX_DIR_ENTRY_COUNT || (demoSize - std::streamoff{ dirEntryCount * DIR_ENTRY_SIZE }) < demo.tellg())
 		throw std::runtime_error("Error parsing the demo directory: invalid directory entry count.");
 
-	dirEntries.clear();
-	dirEntries.reserve(dirEntryCount);
+	directoryEntries.clear();
+	directoryEntries.reserve(dirEntryCount);
 	for (auto i = 0; i < dirEntryCount; ++i) {
 		DemoDirectoryEntry entry;
 		read_object(demo, entry.type);
@@ -132,7 +133,7 @@ void DemoFile::ReadDirectory()
 		read_object(demo, entry.offset);
 		read_object(demo, entry.fileLength);
 
-		dirEntries.push_back(entry);
+		directoryEntries.push_back(entry);
 	}
 }
 
@@ -169,7 +170,7 @@ void DemoFile::ReadFrames()
 	readFrames = true;
 
 	size_t i = 0;
-	for (auto& entry : dirEntries) {
+	for (auto& entry : directoryEntries) {
 		i++;
 
 		auto offset = entry.offset;
@@ -594,7 +595,7 @@ void DemoFile::Save(const std::string& filename)
 	auto dirOffsetPos = o.tellp();
 	o.seekp(4, std::ios::cur);
 
-	for (auto& entry : dirEntries) {
+	for (auto& entry : directoryEntries) {
 		entry.offset = static_cast<int32_t>(o.tellp());
 
 		for (const auto& frame : entry.frames) {
@@ -828,8 +829,8 @@ void DemoFile::Save(const std::string& filename)
 	}
 
 	auto dirOffset = o.tellp();
-	write_object(o, static_cast<int32_t>(dirEntries.size()));
-	for (const auto& entry : dirEntries) {
+	write_object(o, static_cast<int32_t>(directoryEntries.size()));
+	for (const auto& entry : directoryEntries) {
 		write_object(o, entry.type);
 
 		std::vector<char> descriptionBuf;
