@@ -3,7 +3,6 @@
 #include <exception>
 #include <memory>
 #include <vector>
-//#include <boost/nowide/iostream.hpp>
 #include <boost/nowide/fstream.hpp>
 
 #include "DemoFile.hpp"
@@ -31,11 +30,12 @@ enum {
 	FRAME_DEMO_BUFFER_SIZE = 4,
 	FRAME_NETMSG_SIZE = 468,
 	FRAME_NETMSG_DEMOINFO_SIZE = 436,
+	FRAME_NETMSG_DEMOINFO_MOVEVARS_SKYNAME_SIZE = 32,
 	FRAME_NETMSG_MIN_MESSAGE_LENGTH = 0,
 	FRAME_NETMSG_MAX_MESSAGE_LENGTH = 65536
 };
 
-using namespace boost;
+namespace nowide = boost::nowide;
 
 template<typename T>
 static void read_object(nowide::ifstream& i, T& obj)
@@ -167,15 +167,14 @@ void DemoFile::ReadFrames()
 		throw std::runtime_error("Only net protocol 48 and demo protocol 5 is supported.");
 	}
 
-	readFrames = true;
-
 	size_t i = 0;
+	// On any error, just skip to the next entry.
 	for (auto& entry : directoryEntries) {
 		i++;
 
 		auto offset = entry.offset;
 		if (entry.offset < 0 || demoSize < entry.offset) {
-			//nowide::cerr << "Invalid offset " << offset << " for the entry #" << i << ", skipping." << std::endl;
+			// Invalid offset.
 			continue;
 		}
 
@@ -184,7 +183,7 @@ void DemoFile::ReadFrames()
 		bool stop = false;
 		while (!stop) {
 			if (demoSize - std::streamoff{ MIN_FRAME_SIZE } < demo.tellg()) {
-				//nowide::cerr << "End of file encountered while parsing frames for the entry #" << i << ", skipping to the next entry." << std::endl;
+				// Unexpected EOF.
 				break;
 			}
 
@@ -192,12 +191,10 @@ void DemoFile::ReadFrames()
 			read_object(demo, frame.type);
 			read_object(demo, frame.time);
 			read_object(demo, frame.frame);
-			//nowide::cerr << "Demo frame: type = " << static_cast<uint32_t>(frame.type) << "; time = " << frame.time << "; frame = " << frame.frame << std::endl;
 
 			switch (frame.type) {
 			case DemoFrameType::DEMO_START:
 			{
-				//nowide::cerr << "\tDEMO_START" << std::endl;
 				entry.frames.emplace_back(new DemoFrame(std::move(frame)));
 			}
 				break;
@@ -205,7 +202,7 @@ void DemoFile::ReadFrames()
 			case DemoFrameType::CONSOLE_COMMAND:
 			{
 				if (demoSize - std::streamoff{ FRAME_CONSOLE_COMMAND_SIZE } < demo.tellg()) {
-					//nowide::cerr << "End of file encountered while parsing a CONSOLE_COMMAND frame for the entry #" << i << ", skipping to the next entry." << std::endl;
+					// Unexpected EOF.
 					stop = true;
 					break;
 				}
@@ -220,7 +217,6 @@ void DemoFile::ReadFrames()
 				commandBuf.push_back('\0');
 				f.command = commandBuf.data();
 
-				//nowide::cerr << "\tCONSOLE_COMMAND\n\t\tcommand: " << f.command << std::endl;
 				entry.frames.emplace_back(new ConsoleCommandFrame(std::move(f)));
 			}
 				break;
@@ -228,7 +224,7 @@ void DemoFile::ReadFrames()
 			case DemoFrameType::CLIENT_DATA:
 			{
 				if (demoSize - std::streamoff{ FRAME_CLIENT_DATA_SIZE } < demo.tellg()) {
-					//nowide::cerr << "End of file encountered while parsing a CLIENT_DATA frame for the entry #" << i << ", skipping to the next entry." << std::endl;
+					// Unexpected EOF.
 					stop = true;
 					break;
 				}
@@ -245,18 +241,12 @@ void DemoFile::ReadFrames()
 				read_object(demo, f.weaponBits);
 				read_object(demo, f.fov);
 
-				//nowide::cerr << "\tCLIENT_DATA:"
-				//             << "\n\t\torigin: " << f.origin[0] << " " << f.origin[1] << " " << f.origin[2]
-				//             << "\n\t\tviewangles: " << f.viewangles[0] << " " << f.viewangles[1] << " " << f.viewangles[2]
-				//             << "\n\t\tweaponBits: " << f.weaponBits
-				//             << "\n\t\tfov: " << f.fov << std::endl;
 				entry.frames.emplace_back(new ClientDataFrame(std::move(f)));
 			}
 				break;
 
 			case DemoFrameType::NEXT_SECTION:
 			{
-				//nowide::cerr << "\tNEXT_SECTION" << std::endl;
 				entry.frames.emplace_back(new DemoFrame(std::move(frame)));
 
 				stop = true;
@@ -266,7 +256,7 @@ void DemoFile::ReadFrames()
 			case DemoFrameType::EVENT:
 			{
 				if (demoSize - std::streamoff{ FRAME_EVENT_SIZE } < demo.tellg()) {
-					//nowide::cerr << "End of file encountered while parsing an EVENT frame for the entry #" << i << ", skipping to the next entry." << std::endl;
+					// Unexpected EOF.
 					stop = true;
 					break;
 				}
@@ -295,10 +285,6 @@ void DemoFile::ReadFrames()
 				read_object(demo, f.EventArgs.bparam1);
 				read_object(demo, f.EventArgs.bparam2);
 
-				//nowide::cerr << "\tEVENT"
-				//             << "\n\t\tflags: " << f.flags
-				//             << "\n\t\tindex: " << f.index
-				//             << "\n\t\tdelay: " << f.delay << std::endl;
 				entry.frames.emplace_back(new EventFrame(std::move(f)));
 			}
 				break;
@@ -306,7 +292,7 @@ void DemoFile::ReadFrames()
 			case DemoFrameType::WEAPON_ANIM:
 			{
 				if (demoSize - std::streamoff{ FRAME_WEAPON_ANIM_SIZE } < demo.tellg()) {
-					//nowide::cerr << "End of file encountered while parsing a WEAPON_ANIM frame for the entry #" << i << ", skipping to the next entry." << std::endl;
+					// Unexpected EOF.
 					stop = true;
 					break;
 				}
@@ -319,9 +305,6 @@ void DemoFile::ReadFrames()
 				read_object(demo, f.anim);
 				read_object(demo, f.body);
 
-				//nowide::cerr << "\tWEAPON_ANIM"
-				//             << "\n\t\tanim: " << f.anim
-				//             << "\n\t\tbody: " << f.body << std::endl;
 				entry.frames.emplace_back(new WeaponAnimFrame(std::move(f)));
 			}
 				break;
@@ -329,7 +312,7 @@ void DemoFile::ReadFrames()
 			case DemoFrameType::SOUND:
 			{
 				if (demoSize - std::streamoff{ FRAME_SOUND_SIZE_1 } < demo.tellg()) {
-					//nowide::cerr << "End of file encountered while parsing a SOUND frame for the entry #" << i << ", skipping to the next entry." << std::endl;
+					// Unexpected EOF.
 					stop = true;
 					break;
 				}
@@ -345,26 +328,18 @@ void DemoFile::ReadFrames()
 				read_object(demo, length);
 
 				if (demoSize - std::streamoff{ length } - std::streamoff{ FRAME_SOUND_SIZE_2 } < demo.tellg()) {
-					//nowide::cerr << "End of file encountered while parsing a SOUND frame for the entry #" << i << ", skipping to the next entry." << std::endl;
+					// Unexpected EOF.
 					stop = true;
 					break;
 				}
 
 				f.sample.resize(length);
 				read_objects(demo, f.sample);
-				f.sample.push_back('\0');
 				read_object(demo, f.attenuation);
 				read_object(demo, f.volume);
 				read_object(demo, f.flags);
 				read_object(demo, f.pitch);
 
-				//nowide::cerr << "\tSOUND"
-				//             << "\n\t\tchannel: " << f.channel
-				//             << "\n\t\tsample length: " << length
-				//             << "\n\t\tattenuation: " << f.attenuation
-				//             << "\n\t\tvolume: " << f.volume
-				//             << "\n\t\tflags: " << f.flags
-				//             << "\n\t\tpitch: " << f.channel << std::endl;
 				entry.frames.emplace_back(new SoundFrame(std::move(f)));
 			}
 				break;
@@ -372,7 +347,7 @@ void DemoFile::ReadFrames()
 			case DemoFrameType::DEMO_BUFFER:
 			{
 				if (demoSize - std::streamoff{ FRAME_DEMO_BUFFER_SIZE } < demo.tellg()) {
-					//nowide::cerr << "End of file encountered while parsing a DEMO_BUFFER frame for the entry #" << i << ", skipping to the next entry." << std::endl;
+					// Unexpected EOF.
 					stop = true;
 					break;
 				}
@@ -386,7 +361,7 @@ void DemoFile::ReadFrames()
 				read_object(demo, length);
 
 				if (demoSize - std::streamoff{ length } < demo.tellg()) {
-					//nowide::cerr << "End of file encountered while parsing a DEMO_BUFFER frame for the entry #" << i << ", skipping to the next entry." << std::endl;
+					// Unexpected EOF.
 					stop = true;
 					break;
 				}
@@ -394,8 +369,6 @@ void DemoFile::ReadFrames()
 				f.buffer.resize(length);
 				read_objects(demo, f.buffer);
 
-				//nowide::cerr << "\tDEMO_BUFFER"
-				//             << "\n\t\tbuffer length: " << length << std::endl;
 				entry.frames.emplace_back(new DemoBufferFrame(std::move(f)));
 			}
 				break;
@@ -403,7 +376,7 @@ void DemoFile::ReadFrames()
 			default:
 			{
 				if (demoSize - std::streamoff{ FRAME_NETMSG_SIZE } < demo.tellg()) {
-					//nowide::cerr << "End of file encountered while parsing a netmsg frame for the entry #" << i << ", skipping to the next entry." << std::endl;
+					// Unexpected EOF.
 					stop = true;
 					break;
 				}
@@ -509,9 +482,10 @@ void DemoFile::ReadFrames()
 				read_object(demo, f.DemoInfo.MoveVars.zmax);
 				read_object(demo, f.DemoInfo.MoveVars.waveHeight);
 				read_object(demo, f.DemoInfo.MoveVars.footsteps);
-				f.DemoInfo.MoveVars.skyName.resize(32);
-				read_objects(demo, f.DemoInfo.MoveVars.skyName);
-				f.DemoInfo.MoveVars.skyName.push_back('\0');
+				std::vector<char> skyNameBuf(FRAME_NETMSG_DEMOINFO_MOVEVARS_SKYNAME_SIZE);
+				read_objects(demo, skyNameBuf);
+				skyNameBuf.push_back('\0');
+				f.DemoInfo.MoveVars.skyName = skyNameBuf.data();
 				read_object(demo, f.DemoInfo.MoveVars.rollangle);
 				read_object(demo, f.DemoInfo.MoveVars.rollspeed);
 				read_object(demo, f.DemoInfo.MoveVars.skycolor_r);
@@ -537,13 +511,13 @@ void DemoFile::ReadFrames()
 				read_object(demo, length);
 				if (length < FRAME_NETMSG_MIN_MESSAGE_LENGTH
 					|| length > FRAME_NETMSG_MAX_MESSAGE_LENGTH) {
-					//nowide::cerr << "Error parsing a netmsg frame (bad message length) for the entry #" << i << ", skipping to the next entry." << std::endl;
+					// Unexpected EOF.
 					stop = true;
 					break;
 				}
 
 				if (demoSize - std::streamoff{ length } < demo.tellg()) {
-					//nowide::cerr << "End of file encountered while parsing a netmsg frame for the entry #" << i << ", skipping to the next entry." << std::endl;
+					// Unexpected EOF.
 					stop = true;
 					break;
 				}
@@ -551,19 +525,17 @@ void DemoFile::ReadFrames()
 				f.msg.resize(length);
 				read_objects(demo, f.msg);
 
-				//nowide::cerr << "\tNetMsg"
-				//             << "\n\t\tDemo info:"
-				//             << "\n\t\t\tframetime: " << f.DemoInfo.RefParams.frametime
-				//             << "\n\t\t\tview: " << f.DemoInfo.view[0] << " " << f.DemoInfo.view[1] << " " << f.DemoInfo.view[2]
-				//             << "\n\t\t\tvieworg: " << f.DemoInfo.RefParams.vieworg[0] << " " << f.DemoInfo.RefParams.vieworg[1] << " " << f.DemoInfo.RefParams.vieworg[2]
-				//             << "\n\t\t\tviewangles: " << f.DemoInfo.RefParams.viewangles[0] << " " << f.DemoInfo.RefParams.viewangles[1] << " " << f.DemoInfo.RefParams.viewangles[2]
-				//             << "\n\t\tmessage length: " << length << std::endl;
 				entry.frames.emplace_back(new NetMsgFrame(std::move(f)));
 			}
 				break;
 			}
 		}
 	}
+
+	readFrames = true;
+	// Now that we read the frames we can close the demo
+	// as there isn't anything else we can read.
+	demo.close();
 }
 
 void DemoFile::Save(const std::string& filename)
@@ -598,6 +570,9 @@ void DemoFile::Save(const std::string& filename)
 	for (auto& entry : directoryEntries) {
 		entry.offset = static_cast<int32_t>(o.tellp());
 
+		// We need to write at least one NextSectionFrame, otherwise
+		// the engine might break trying to play back the demo.
+		bool wroteNextSection = false;
 		for (const auto& frame : entry.frames) {
 			write_object(o, frame->type);
 			write_object(o, frame->time);
@@ -635,6 +610,7 @@ void DemoFile::Save(const std::string& filename)
 
 			case DemoFrameType::NEXT_SECTION:
 				// No extra info.
+				wroteNextSection = true;
 				break;
 
 			case DemoFrameType::EVENT:
@@ -676,10 +652,8 @@ void DemoFile::Save(const std::string& filename)
 				auto f = reinterpret_cast<SoundFrame*>(frame.get());
 
 				write_object(o, f->channel);
-				auto sampleBuf = f->sample;
-				sampleBuf.resize(sampleBuf.size() - 1); // Cut out the '\0' we added there manually.
-				write_object(o, static_cast<int32_t>(sampleBuf.size()));
-				write_objects(o, sampleBuf);
+				write_object(o, static_cast<int32_t>(f->sample.size()));
+				write_objects(o, f->sample);
 				write_object(o, f->attenuation);
 				write_object(o, f->volume);
 				write_object(o, f->flags);
@@ -796,8 +770,10 @@ void DemoFile::Save(const std::string& filename)
 				write_object(o, f->DemoInfo.MoveVars.zmax);
 				write_object(o, f->DemoInfo.MoveVars.waveHeight);
 				write_object(o, f->DemoInfo.MoveVars.footsteps);
-				auto skyNameBuf = f->DemoInfo.MoveVars.skyName;
-				skyNameBuf.resize(32);
+				std::vector<char> skyNameBuf;
+				std::copy(std::begin(f->DemoInfo.MoveVars.skyName), std::end(f->DemoInfo.MoveVars.skyName), std::back_inserter(skyNameBuf));
+				skyNameBuf.push_back('\0');
+				skyNameBuf.resize(FRAME_NETMSG_DEMOINFO_MOVEVARS_SKYNAME_SIZE);
 				write_objects(o, skyNameBuf);
 				write_object(o, f->DemoInfo.MoveVars.rollangle);
 				write_object(o, f->DemoInfo.MoveVars.rollspeed);
@@ -825,6 +801,17 @@ void DemoFile::Save(const std::string& filename)
 			}
 				break;
 			}
+		}
+
+		if (!wroteNextSection) {
+			DemoFrame f;
+			f.type = DemoFrameType::NEXT_SECTION;
+			f.time = 0;
+			f.frame = 0;
+
+			write_object(o, f.type);
+			write_object(o, f.time);
+			write_object(o, f.frame);
 		}
 	}
 

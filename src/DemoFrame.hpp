@@ -152,7 +152,7 @@ struct NetMsgFrame : DemoFrame {
 			float zmax;
 			float waveHeight;
 			int32_t footsteps;
-			std::vector<char> skyName;
+			std::string skyName;
 			float rollangle;
 			float rollspeed;
 			float skycolor_r;
