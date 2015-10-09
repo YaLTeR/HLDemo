@@ -163,8 +163,8 @@ void DemoFile::ReadFrames()
 	if (readFrames)
 		return;
 
-	if (header.netProtocol != 48 || header.demoProtocol != 5) {
-		throw std::runtime_error("Only net protocol 48 and demo protocol 5 is supported.");
+	if (header.demoProtocol != 5) {
+		throw std::runtime_error("Only demo protocol 5 is supported.");
 	}
 
 	size_t i = 0;
