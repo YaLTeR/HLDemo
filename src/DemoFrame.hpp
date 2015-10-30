@@ -92,8 +92,8 @@ struct NetMsgFrame : DemoFrame {
 			int32_t spectator;
 			int32_t onground;
 			int32_t waterlevel;
-			float simorg[3];
 			float simvel[3];
+			float simorg[3];
 			float viewheight[3];
 			float idealpitch;
 			float cl_viewangles[3];
