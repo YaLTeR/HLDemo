@@ -1,9 +1,12 @@
 #include <chrono>
+#include <codecvt>
 #include <cstring>
 #include <exception>
+#include <fstream>
+#include <iterator>
+#include <locale>
 #include <memory>
 #include <vector>
-#include <boost/nowide/fstream.hpp>
 
 #include "DemoFile.hpp"
 #include "DemoFrame.hpp"
@@ -35,35 +38,63 @@ enum {
 	FRAME_NETMSG_MAX_MESSAGE_LENGTH = 65536
 };
 
-namespace nowide = boost::nowide;
-
 template<typename T>
-static void read_object(nowide::ifstream& i, T& obj)
+static void read_object(std::ifstream& i, T& obj)
 {
 	i.read(reinterpret_cast<char*>(&obj), sizeof(T));
 }
 
 template<typename T>
-static void read_objects(nowide::ifstream& i, std::vector<T>& objs)
+static void read_objects(std::ifstream& i, std::vector<T>& objs)
 {
 	i.read(reinterpret_cast<char*>(objs.data()), objs.size() * sizeof(T));
 }
 
 template<typename T>
-static void write_object(nowide::ofstream& o, const T& obj)
+static void write_object(std::ofstream& o, const T& obj)
 {
 	o.write(reinterpret_cast<const char*>(&obj), sizeof(T));
 }
 
 template<typename T>
-static void write_objects(nowide::ofstream& o, const std::vector<T>& objs)
+static void write_objects(std::ofstream& o, const std::vector<T>& objs)
 {
 	o.write(reinterpret_cast<const char*>(objs.data()), objs.size() * sizeof(T));
 }
 
+static std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> string_converter;
+static std::wstring utf8_to_utf16(const std::string& str)
+{
+	return string_converter.from_bytes(str);
+}
+
+static std::string utf16_to_utf8(const std::wstring& str)
+{
+	return string_converter.to_bytes(str);
+}
+
+#ifdef _WIN32
+#define utf8_filename(str) utf8_to_utf16(str)
+#define utf16_filename(str) str
+#else
+#define utf8_filename(str) str
+#define utf16_filename(str) utf16_to_utf8(str)
+#endif
+
 DemoFile::DemoFile(const std::string& filename)
 {
-	demo.open(filename.c_str(), std::ios::binary);
+	demo.open(utf8_filename(filename), std::ios::binary);
+	ConstructorInternal();
+}
+
+DemoFile::DemoFile(const std::wstring& filename)
+{
+	demo.open(utf16_filename(filename), std::ios::binary);
+	ConstructorInternal();
+}
+
+void DemoFile::ConstructorInternal()
+{
 	if (!demo)
 		throw std::runtime_error("Error opening the demo file.");
 
@@ -139,8 +170,16 @@ void DemoFile::ReadDirectory()
 
 bool DemoFile::IsValidDemoFile(const std::string& filename)
 {
-	nowide::ifstream in;
-	in.open(filename.c_str(), std::ios::binary);
+	return IsValidDemoFileInternal(std::ifstream(utf8_filename(filename), std::ios::binary));
+}
+
+bool DemoFile::IsValidDemoFile(const std::wstring& filename)
+{
+	return IsValidDemoFileInternal(std::ifstream(utf16_filename(filename), std::ios::binary));
+}
+
+bool DemoFile::IsValidDemoFileInternal(std::ifstream in)
+{
 	if (!in)
 		throw std::runtime_error("Error opening the file.");
 
@@ -540,7 +579,16 @@ void DemoFile::ReadFrames()
 
 void DemoFile::Save(const std::string& filename)
 {
-	nowide::ofstream o(filename.c_str(), std::ios::trunc | std::ios::binary);
+	DemoFile::SaveInternal(std::ofstream(utf8_filename(filename), std::ios::trunc | std::ios::binary));
+}
+
+void DemoFile::Save(const std::wstring& filename)
+{
+	DemoFile::SaveInternal(std::ofstream(utf16_filename(filename), std::ios::trunc | std::ios::binary));
+}
+
+void DemoFile::SaveInternal(std::ofstream o)
+{
 	if (!o)
 		throw std::runtime_error("Error opening the output file.");
 

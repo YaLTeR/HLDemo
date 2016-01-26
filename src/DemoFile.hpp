@@ -1,10 +1,10 @@
 #pragma once
 
 #include <cstdint>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <vector>
-#include <boost/nowide/fstream.hpp>
 
 #include "DemoFrame.hpp"
 
@@ -30,21 +30,32 @@ struct DemoDirectoryEntry {
 	std::vector<std::shared_ptr<DemoFrame>> frames;
 };
 
+/*
+ * The std::string versions accept multibyte UTF-8 filenames,
+ * the std::wstring versions accept wide UTF-16 filenames.
+ */
 class DemoFile
 {
 public:
 	DemoFile(const std::string& filename);
+	DemoFile(const std::wstring& filename);
 	void ReadFrames();
 	void Save(const std::string& filename);
+	void Save(const std::wstring& filename);
 
 	DemoHeader header;
 	std::vector<DemoDirectoryEntry> directoryEntries;
 
 	static bool IsValidDemoFile(const std::string& filename);
+	static bool IsValidDemoFile(const std::wstring& filename);
 
 protected:
-	boost::nowide::ifstream demo;
+	std::ifstream demo;
 	std::streampos demoSize;
+
+	void ConstructorInternal();
+	void SaveInternal(std::ofstream o);
+	static bool IsValidDemoFileInternal(std::ifstream in);
 
 	void ReadHeader();
 	void ReadDirectory();

@@ -5,12 +5,17 @@ if (NOT MSVC)
 	set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -march=native -mtune=native -Ofast -Wall -Wextra")
 endif ()
 
-find_package (Boost 1.57.0 REQUIRED)
-include_directories (${Boost_INCLUDE_DIR})
-
 set (LIBRARY_OUTPUT_DIRECTORY ".")
 set (SOURCE_FILES
 	src/DemoFile.cpp
 )
+set (HEADER_FILES
+	src/DemoFile.hpp
+	src/DemoFrame.hpp
+)
+
+if (MSVC)
+	set (SOURCE_FILES ${SOURCE_FILES} ${HEADER_FILES})
+endif ()
 
 add_library (HLDemo ${SOURCE_FILES})
