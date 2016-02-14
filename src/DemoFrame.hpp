@@ -117,7 +117,7 @@ struct NetMsgFrame : DemoFrame {
 
 		struct {
 			int16_t lerp_msec;
-			int8_t msec;
+			uint8_t msec;
 			uint8_t align_1;
 			float viewangles[3];
 			float forwardmove;
