@@ -1,3 +1,4 @@
+#include <cassert>
 #include <chrono>
 #include <codecvt>
 #include <cstring>
@@ -5,6 +6,7 @@
 #include <fstream>
 #include <iterator>
 #include <locale>
+#include <unordered_map>
 #include <memory>
 #include <vector>
 
@@ -81,25 +83,100 @@ static std::string utf16_to_utf8(const std::wstring& str)
 #define utf16_filename(str) utf16_to_utf8(str)
 #endif
 
-DemoFile::DemoFile(const std::string& filename)
+DemoDirectoryEntry::DemoDirectoryEntry(const DemoDirectoryEntry& e)
+	: type(e.type)
+	, description(e.description)
+	, flags(e.flags)
+	, CDTrack(e.CDTrack)
+	, trackTime(e.trackTime)
+	, frameCount(e.frameCount)
+	, offset(e.offset)
+	, fileLength(e.fileLength)
 {
-	demo.open(utf8_filename(filename), std::ios::binary);
-	ConstructorInternal();
+	frames.reserve(e.frames.size());
+	for (const auto& frame : e.frames) {
+		#define PUSH_COPY(class) \
+			frames.emplace_back(new class(*static_cast<class*>(frame.get())))
+
+		switch (frame->type) {
+			case DemoFrameType::DEMO_START:
+			case DemoFrameType::NEXT_SECTION:
+				frames.emplace_back(new DemoFrame(*frame));
+				break;
+
+			case DemoFrameType::CONSOLE_COMMAND:
+				PUSH_COPY(ConsoleCommandFrame);
+				break;
+
+			case DemoFrameType::CLIENT_DATA:
+				PUSH_COPY(ClientDataFrame);
+				break;
+
+			case DemoFrameType::EVENT:
+				PUSH_COPY(EventFrame);
+				break;
+
+			case DemoFrameType::WEAPON_ANIM:
+				PUSH_COPY(WeaponAnimFrame);
+				break;
+				
+			case DemoFrameType::SOUND:
+				PUSH_COPY(SoundFrame);
+				break;
+				
+			case DemoFrameType::DEMO_BUFFER:
+				PUSH_COPY(DemoBufferFrame);
+				break;
+				
+			default:
+				PUSH_COPY(NetMsgFrame);
+				break;
+		}
+
+		#undef PUSH_COPY
+	}
 }
 
-DemoFile::DemoFile(const std::wstring& filename)
+DemoDirectoryEntry& DemoDirectoryEntry::operator= (DemoDirectoryEntry e)
 {
-	demo.open(utf16_filename(filename), std::ios::binary);
-	ConstructorInternal();
+	swap(e);
+	return *this;
 }
 
-void DemoFile::ConstructorInternal()
+void DemoDirectoryEntry::swap(DemoDirectoryEntry& e)
+{
+	std::swap(type, e.type);
+	std::swap(description, e.description);
+	std::swap(flags, e.flags);
+	std::swap(CDTrack, e.CDTrack);
+	std::swap(trackTime, e.trackTime);
+	std::swap(frameCount, e.frameCount);
+	std::swap(offset, e.offset);
+	std::swap(fileLength, e.fileLength);
+	std::swap(frames, e.frames);
+}
+
+DemoFile::DemoFile(std::string filename_, bool read_frames)
+	: filename(std::move(filename_))
+	, readFrames(false)
+{
+	ConstructorInternal(std::ifstream(utf8_filename(filename), std::ios::binary), read_frames);
+}
+
+DemoFile::DemoFile(std::wstring filename_, bool read_frames)
+	: filename(utf16_to_utf8(filename_))
+	, readFrames(false)
+{
+	ConstructorInternal(std::ifstream(utf16_filename(filename_), std::ios::binary), read_frames);
+}
+
+void DemoFile::ConstructorInternal(std::ifstream demo, bool read_frames)
 {
 	if (!demo)
 		throw std::runtime_error("Error opening the demo file.");
 
 	demo.seekg(0, std::ios::end);
-	demoSize = demo.tellg();
+	size_t demoSize = demo.tellg();
 	if (demoSize < HEADER_SIZE)
 		throw std::runtime_error("Invalid demo file (the size is too small).");
 
@@ -109,13 +186,14 @@ void DemoFile::ConstructorInternal()
 	if (std::memcmp(signature, "HLDEMO", sizeof(signature)))
 		throw std::runtime_error("Invalid demo file (signature doesn't match).");
 
-	ReadHeader();
-	ReadDirectory();
+	ReadHeader(demo);
+	ReadDirectory(demo, demoSize);
 
-	readFrames = false;
+	if (read_frames)
+		ReadFramesInternal(demo, demoSize);
 }
 
-void DemoFile::ReadHeader()
+void DemoFile::ReadHeader(std::ifstream& demo)
 {
 	demo.seekg(HEADER_SIGNATURE_SIZE, std::ios::beg);
 	read_object(demo, header.demoProtocol);
@@ -135,7 +213,7 @@ void DemoFile::ReadHeader()
 	read_object(demo, header.directoryOffset);
 }
 
-void DemoFile::ReadDirectory()
+void DemoFile::ReadDirectory(std::ifstream& demo, size_t demoSize)
 {
 	if (header.directoryOffset < 0 || demoSize - std::streamoff{ 4 } < header.directoryOffset)
 		throw std::runtime_error("Error parsing the demo directory: invalid directory offset.");
@@ -199,8 +277,15 @@ bool DemoFile::IsValidDemoFileInternal(std::ifstream in)
 
 void DemoFile::ReadFrames()
 {
-	if (readFrames)
-		return;
+	if (!readFrames) {
+		DemoFile demo(filename, true);
+		swap(demo);
+	}
+}
+
+void DemoFile::ReadFramesInternal(std::ifstream& demo, size_t demoSize)
+{
+	assert(!readFrames);
 
 	if (header.demoProtocol != 5) {
 		throw std::runtime_error("Only demo protocol 5 is supported.");
@@ -572,22 +657,24 @@ void DemoFile::ReadFrames()
 	}
 
 	readFrames = true;
-	// Now that we read the frames we can close the demo
-	// as there isn't anything else we can read.
-	demo.close();
 }
 
-void DemoFile::Save(const std::string& filename)
+void DemoFile::Save() const
+{
+	DemoFile::Save(filename);
+}
+
+void DemoFile::Save(const std::string& filename) const
 {
 	DemoFile::SaveInternal(std::ofstream(utf8_filename(filename), std::ios::trunc | std::ios::binary));
 }
 
-void DemoFile::Save(const std::wstring& filename)
+void DemoFile::Save(const std::wstring& filename) const
 {
 	DemoFile::SaveInternal(std::ofstream(utf16_filename(filename), std::ios::trunc | std::ios::binary));
 }
 
-void DemoFile::SaveInternal(std::ofstream o)
+void DemoFile::SaveInternal(std::ofstream o) const
 {
 	if (!o)
 		throw std::runtime_error("Error opening the output file.");
@@ -615,8 +702,10 @@ void DemoFile::SaveInternal(std::ofstream o)
 	auto dirOffsetPos = o.tellp();
 	o.seekp(4, std::ios::cur);
 
-	for (auto& entry : directoryEntries) {
-		entry.offset = static_cast<int32_t>(o.tellp());
+	std::unordered_map<const DemoDirectoryEntry*, int32_t> new_offsets;
+
+	for (const auto& entry : directoryEntries) {
+		new_offsets[&entry] = static_cast<int32_t>(o.tellp());
 
 		// We need to write at least one NextSectionFrame, otherwise
 		// the engine might break trying to play back the demo.
@@ -878,13 +967,20 @@ void DemoFile::SaveInternal(std::ofstream o)
 		write_object(o, entry.CDTrack);
 		write_object(o, entry.trackTime);
 		write_object(o, entry.frameCount);
-		write_object(o, entry.offset);
+		write_object(o, new_offsets.at(&entry));
 		write_object(o, entry.fileLength);
 	}
 
 	o.seekp(dirOffsetPos, std::ios::beg);
 	write_object(o, static_cast<int32_t>(dirOffset));
-	header.directoryOffset = static_cast<int32_t>(dirOffset);
 
 	o.close();
+}
+
+void DemoFile::swap(DemoFile& f)
+{
+	std::swap(filename, f.filename);
+	std::swap(readFrames, f.readFrames);
+	std::swap(header, f.header);
+	std::swap(directoryEntries, f.directoryEntries);
 }

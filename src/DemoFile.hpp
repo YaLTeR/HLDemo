@@ -27,7 +27,16 @@ struct DemoDirectoryEntry {
 	int32_t offset;
 	int32_t fileLength;
 
-	std::vector<std::shared_ptr<DemoFrame>> frames;
+	std::vector<std::unique_ptr<DemoFrame>> frames;
+
+	DemoDirectoryEntry() = default;
+	~DemoDirectoryEntry() = default;
+	DemoDirectoryEntry(const DemoDirectoryEntry& e);
+	DemoDirectoryEntry(DemoDirectoryEntry&&) = default;
+	DemoDirectoryEntry& operator= (DemoDirectoryEntry e);
+
+private:
+	void swap(DemoDirectoryEntry& e);
 };
 
 /*
@@ -37,11 +46,16 @@ struct DemoDirectoryEntry {
 class DemoFile
 {
 public:
-	DemoFile(const std::string& filename);
-	DemoFile(const std::wstring& filename);
+	DemoFile(std::string filename, bool read_frames);
+	DemoFile(std::wstring filename, bool read_frames);
 	void ReadFrames();
-	void Save(const std::string& filename);
-	void Save(const std::wstring& filename);
+
+	inline bool DidReadFrames() const { return readFrames; }
+	inline const std::string& GetFilename() const { return filename; }
+
+	void Save() const;
+	void Save(const std::string& filename) const;
+	void Save(const std::wstring& filename) const;
 
 	DemoHeader header;
 	std::vector<DemoDirectoryEntry> directoryEntries;
@@ -50,15 +64,17 @@ public:
 	static bool IsValidDemoFile(const std::wstring& filename);
 
 protected:
-	std::ifstream demo;
-	std::streampos demoSize;
+	std::string filename;
+	bool readFrames;
 
-	void ConstructorInternal();
-	void SaveInternal(std::ofstream o);
+	void ConstructorInternal(std::ifstream demo, bool read_frames);
+	void ReadFramesInternal(std::ifstream& demo, size_t demoSize);
+	void SaveInternal(std::ofstream o) const;
 	static bool IsValidDemoFileInternal(std::ifstream in);
 
-	void ReadHeader();
-	void ReadDirectory();
+	void ReadHeader(std::ifstream& demo);
+	void ReadDirectory(std::ifstream& demo, size_t demoSize);
 
-	bool readFrames;
+private:
+	void swap(DemoFile& f);
 };

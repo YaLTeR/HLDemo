@@ -18,6 +18,8 @@ struct DemoFrame {
 	DemoFrameType type;
 	float time;
 	int32_t frame;
+
+	virtual ~DemoFrame() {}
 };
 
 // DEMO_START: no extra data.
