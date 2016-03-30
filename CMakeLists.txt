@@ -2,7 +2,7 @@ cmake_minimum_required (VERSION 3.1)
 project (HLDemo)
 
 if (NOT MSVC)
-	set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -march=native -mtune=native -Ofast -Wall -Wextra")
+	set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -march=native -mtune=native -Ofast -Wall -Wextra -Wno-unused-function")
 endif ()
 
 set (LIBRARY_OUTPUT_DIRECTORY ".")
