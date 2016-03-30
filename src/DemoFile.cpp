@@ -215,13 +215,15 @@ void DemoFile::ReadHeader(std::ifstream& demo)
 
 void DemoFile::ReadDirectory(std::ifstream& demo, size_t demoSize)
 {
-	if (header.directoryOffset < 0 || demoSize - std::streamoff{ 4 } < header.directoryOffset)
+	if (header.directoryOffset < 0 || (demoSize - 4) < static_cast<size_t>(header.directoryOffset))
 		throw std::runtime_error("Error parsing the demo directory: invalid directory offset.");
 
 	demo.seekg(header.directoryOffset, std::ios::beg);
 	int32_t dirEntryCount;
 	read_object(demo, dirEntryCount);
-	if (dirEntryCount < MIN_DIR_ENTRY_COUNT || dirEntryCount > MAX_DIR_ENTRY_COUNT || (demoSize - std::streamoff{ dirEntryCount * DIR_ENTRY_SIZE }) < demo.tellg())
+	if (dirEntryCount < MIN_DIR_ENTRY_COUNT
+		|| dirEntryCount > MAX_DIR_ENTRY_COUNT
+		|| (demoSize - demo.tellg()) < static_cast<size_t>(dirEntryCount * DIR_ENTRY_SIZE))
 		throw std::runtime_error("Error parsing the demo directory: invalid directory entry count.");
 
 	directoryEntries.clear();
@@ -291,13 +293,10 @@ void DemoFile::ReadFramesInternal(std::ifstream& demo, size_t demoSize)
 		throw std::runtime_error("Only demo protocol 5 is supported.");
 	}
 
-	size_t i = 0;
 	// On any error, just skip to the next entry.
 	for (auto& entry : directoryEntries) {
-		i++;
-
 		auto offset = entry.offset;
-		if (entry.offset < 0 || demoSize < entry.offset) {
+		if (entry.offset < 0 || demoSize < static_cast<size_t>(entry.offset)) {
 			// Invalid offset.
 			continue;
 		}
@@ -306,7 +305,7 @@ void DemoFile::ReadFramesInternal(std::ifstream& demo, size_t demoSize)
 
 		bool stop = false;
 		while (!stop) {
-			if (demoSize - std::streamoff{ MIN_FRAME_SIZE } < demo.tellg()) {
+			if (demoSize - demo.tellg() < MIN_FRAME_SIZE) {
 				// Unexpected EOF.
 				break;
 			}
@@ -325,7 +324,7 @@ void DemoFile::ReadFramesInternal(std::ifstream& demo, size_t demoSize)
 
 			case DemoFrameType::CONSOLE_COMMAND:
 			{
-				if (demoSize - std::streamoff{ FRAME_CONSOLE_COMMAND_SIZE } < demo.tellg()) {
+				if (demoSize - demo.tellg() < FRAME_CONSOLE_COMMAND_SIZE) {
 					// Unexpected EOF.
 					stop = true;
 					break;
@@ -347,7 +346,7 @@ void DemoFile::ReadFramesInternal(std::ifstream& demo, size_t demoSize)
 
 			case DemoFrameType::CLIENT_DATA:
 			{
-				if (demoSize - std::streamoff{ FRAME_CLIENT_DATA_SIZE } < demo.tellg()) {
+				if (demoSize - demo.tellg() < FRAME_CLIENT_DATA_SIZE) {
 					// Unexpected EOF.
 					stop = true;
 					break;
@@ -379,7 +378,7 @@ void DemoFile::ReadFramesInternal(std::ifstream& demo, size_t demoSize)
 
 			case DemoFrameType::EVENT:
 			{
-				if (demoSize - std::streamoff{ FRAME_EVENT_SIZE } < demo.tellg()) {
+				if (demoSize - demo.tellg() < FRAME_EVENT_SIZE) {
 					// Unexpected EOF.
 					stop = true;
 					break;
@@ -415,7 +414,7 @@ void DemoFile::ReadFramesInternal(std::ifstream& demo, size_t demoSize)
 
 			case DemoFrameType::WEAPON_ANIM:
 			{
-				if (demoSize - std::streamoff{ FRAME_WEAPON_ANIM_SIZE } < demo.tellg()) {
+				if (demoSize - demo.tellg() < FRAME_WEAPON_ANIM_SIZE) {
 					// Unexpected EOF.
 					stop = true;
 					break;
@@ -435,7 +434,7 @@ void DemoFile::ReadFramesInternal(std::ifstream& demo, size_t demoSize)
 
 			case DemoFrameType::SOUND:
 			{
-				if (demoSize - std::streamoff{ FRAME_SOUND_SIZE_1 } < demo.tellg()) {
+				if (demoSize - demo.tellg() < FRAME_SOUND_SIZE_1) {
 					// Unexpected EOF.
 					stop = true;
 					break;
@@ -451,7 +450,7 @@ void DemoFile::ReadFramesInternal(std::ifstream& demo, size_t demoSize)
 				int32_t length;
 				read_object(demo, length);
 
-				if (demoSize - std::streamoff{ length } - std::streamoff{ FRAME_SOUND_SIZE_2 } < demo.tellg()) {
+				if (length < 0 || demoSize - demo.tellg() < FRAME_SOUND_SIZE_2 + static_cast<size_t>(length)) {
 					// Unexpected EOF.
 					stop = true;
 					break;
@@ -470,7 +469,7 @@ void DemoFile::ReadFramesInternal(std::ifstream& demo, size_t demoSize)
 
 			case DemoFrameType::DEMO_BUFFER:
 			{
-				if (demoSize - std::streamoff{ FRAME_DEMO_BUFFER_SIZE } < demo.tellg()) {
+				if (demoSize - demo.tellg() < FRAME_DEMO_BUFFER_SIZE) {
 					// Unexpected EOF.
 					stop = true;
 					break;
@@ -484,7 +483,7 @@ void DemoFile::ReadFramesInternal(std::ifstream& demo, size_t demoSize)
 				int32_t length;
 				read_object(demo, length);
 
-				if (demoSize - std::streamoff{ length } < demo.tellg()) {
+				if (length < 0 || demoSize - demo.tellg() < static_cast<size_t>(length)) {
 					// Unexpected EOF.
 					stop = true;
 					break;
@@ -499,7 +498,7 @@ void DemoFile::ReadFramesInternal(std::ifstream& demo, size_t demoSize)
 
 			default:
 			{
-				if (demoSize - std::streamoff{ FRAME_NETMSG_SIZE } < demo.tellg()) {
+				if (demoSize - demo.tellg() < FRAME_NETMSG_SIZE) {
 					// Unexpected EOF.
 					stop = true;
 					break;
@@ -640,7 +639,7 @@ void DemoFile::ReadFramesInternal(std::ifstream& demo, size_t demoSize)
 					break;
 				}
 
-				if (demoSize - std::streamoff{ length } < demo.tellg()) {
+				if (demoSize - demo.tellg() < static_cast<size_t>(length)) {
 					// Unexpected EOF.
 					stop = true;
 					break;
